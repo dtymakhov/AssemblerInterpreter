@@ -11,6 +11,8 @@ public class AssemblerInterpreter
     private static string[] _lines;
     private const string End = "end";
 
+    private static (int, int) _conditions;
+
     public static string? Interpret(string input)
     {
         input = RemoveComments(input);
@@ -50,10 +52,34 @@ public class AssemblerInterpreter
                     Div(commandArgs[0], commandArgs[1]);
                     break;
                 case "msg":
-                    Msg(commandArgs[0], commandArgs.Skip(1).ToArray());
+                    Msg(commandArgs);
                     break;
                 case "call":
                     Call(commandArgs[0]);
+                    break;
+                case "cmp":
+                    Cmp(commandArgs[0], commandArgs[1]);
+                    break;
+                case "jmp":
+                    Jmp(commandArgs[0]);
+                    break;
+                case "jne":
+                    Jne(commandArgs[0]);
+                    break;
+                case "je":
+                    Je(commandArgs[0]);
+                    break;
+                case "jge":
+                    Jge(commandArgs[0]);
+                    break;
+                case "jg":
+                    Jg(commandArgs[0]);
+                    break;
+                case "jle":
+                    Jle(commandArgs[0]);
+                    break;
+                case "jl":
+                    Jl(commandArgs[0]);
                     break;
                 case "ret":
                     Ret();
@@ -67,6 +93,8 @@ public class AssemblerInterpreter
     }
 
     private static int GetValue(string s) => int.TryParse(s, out var tmp) ? tmp : Memory[s];
+
+    private static string GetStringValue(string s) => Memory.ContainsKey(s) ? Memory[s].ToString() : s;
 
     #region Instructions
 
@@ -86,12 +114,45 @@ public class AssemblerInterpreter
 
     private static void Div(string name, string value) => Memory[name] /= GetValue(value);
 
-    private static void Msg(string msg, params string[] parameters)
-    {
-        var args = new List<string> {msg};
-        args.AddRange(parameters.Select(x => GetValue(x).ToString()).ToArray());
+    private static void Msg(params string[] parameters) => _output += string.Join("", parameters.Select(x => GetStringValue(x).ToString()).ToArray());
 
-        _output += string.Join(' ', args);
+    private static void Cmp(string val1, string val2) => _conditions = (GetValue(val1), GetValue(val2));
+
+    private static void Jmp(string label)
+    {
+        var line = _lines.FirstOrDefault(l => l.StartsWith(label));
+        var funcIndex = Array.IndexOf(_lines, line);
+        _pointer = funcIndex;
+    }
+
+    private static void Jne(string label)
+    {
+        if (_conditions.Item1 != _conditions.Item2) Jmp(label);
+    }
+
+    private static void Je(string label)
+    {
+        if (_conditions.Item1 == _conditions.Item2) Jmp(label);
+    }
+
+    private static void Jge(string label)
+    {
+        if (_conditions.Item1 >= _conditions.Item2) Jmp(label);
+    }
+
+    private static void Jg(string label)
+    {
+        if (_conditions.Item1 > _conditions.Item2) Jmp(label);
+    }
+
+    private static void Jle(string label)
+    {
+        if (_conditions.Item1 <= _conditions.Item2) Jmp(label);
+    }
+
+    private static void Jl(string label)
+    {
+        if (_conditions.Item1 < _conditions.Item2) Jmp(label);
     }
 
     private static void Call(string label)
@@ -133,7 +194,8 @@ public class AssemblerInterpreter
         {
             if (commandArgs[i].Contains('\'', StringComparison.Ordinal))
             {
-                commandArgs[i] = commandArgs[i].Trim('\'', ' ');
+                commandArgs[i] = commandArgs[i].Trim();
+                commandArgs[i] = commandArgs[i].Trim('\'');
             }
             else
             {
@@ -149,7 +211,7 @@ public class AssemblerInterpreter
     public static void Main()
     {
         var result = Interpret(
-            "\n; My first program\nmov  a, 5\ninc  a\ncall function\nmsg  '(5+1)/2 = ', a    ; output message\nend\n\nfunction:\n    div  a, 2\n    ret\n");
+            "\nmov   a, 5\nmov   b, a\nmov   c, a\ncall  proc_fact\ncall  print\nend\n\nproc_fact:\n    dec   b\n    mul   c, b\n    cmp   b, 1\n    jne   proc_fact\n    ret\n\nprint:\n    msg   a, '! = ', c ; output text\n    ret\n");
 
         Console.WriteLine(result);
     }
