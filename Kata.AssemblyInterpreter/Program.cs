@@ -1,21 +1,26 @@
-﻿using System.Diagnostics;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace Kata.AssemblyInterpreter;
 
 public class AssemblerInterpreter
 {
-    private static readonly Dictionary<string, int> Memory = new Dictionary<string, int>();
-    private static readonly Stack<int> Indexes = new Stack<int>();
-    private static string _output = string.Empty;
-    private static int _pointer = 0;
+    private static Dictionary<string, int> _memory;
+    private static Stack<int> _indexes;
+    private static string _output;
+    private static int _pointer;
     private static string[] _lines;
     private const string End = "end";
 
     private static (int, int) _conditions;
 
-    public static string? Interpret(string input)
+    public static string Interpret(string input)
     {
+        _output = string.Empty;
+        _pointer = 0;
+        _memory = new Dictionary<string, int>();
+        _indexes = new Stack<int>();
+        _lines = null;
+
         input = RemoveComments(input);
 
         if (FindProgramEnd(input) == -1) return null;
@@ -90,30 +95,61 @@ public class AssemblerInterpreter
             }
         }
 
-        return _output;
+        return null;
     }
 
-    private static int GetValue(string s) => int.TryParse(s, out var tmp) ? tmp : Memory[s];
+    private static int GetValue(string s) => int.TryParse(s, out var tmp) ? tmp : _memory[s];
 
-    private static string GetStringValue(string s) => Memory.ContainsKey(s) ? Memory[s].ToString() : s;
+    private static string GetStringValue(string s) => _memory.ContainsKey(s) ? _memory[s].ToString() : s;
+
+    private static string RemoveComments(string input)
+    {
+        var output = Regex.Replace(input, @";(.*?)\r?\n", "\n");
+
+        return output;
+    }
+
+    private static int FindProgramEnd(string input)
+    {
+        return input.IndexOf(End, StringComparison.Ordinal);
+    }
+
+    private static (string, string[]) ParseLine(string line)
+    {
+        var trimmedLine = line.Trim();
+        var index = trimmedLine.IndexOf(" ", StringComparison.Ordinal);
+
+        if (index == -1) return (trimmedLine, Array.Empty<string>());
+
+        var commandName = trimmedLine[..index];
+        var commandArgs = Regex.Split(trimmedLine[index..], ",(?=(?:[^']*'[^']*')*[^']*$)");
+
+        for (var i = 0; i < commandArgs.Length; i++)
+        {
+            commandArgs[i] = commandArgs[i].Trim(' ').Trim('\'');
+        }
+
+        return (commandName, commandArgs);
+    }
+
 
     #region Instructions
 
-    private static void Mov(string name, string value) => Memory[name] = GetValue(value);
+    private static void Mov(string name, string value) => _memory[name] = GetValue(value);
 
     private static void Jnz(string val1, string val2) => _pointer += GetValue(val1) != 0 ? GetValue(val2) - 1 : 0;
 
-    private static void Inc(string name) => Memory[name]++;
+    private static void Inc(string name) => _memory[name]++;
 
-    private static void Dec(string name) => Memory[name]--;
+    private static void Dec(string name) => _memory[name]--;
 
-    private static void Add(string name, string value) => Memory[name] += GetValue(value);
+    private static void Add(string name, string value) => _memory[name] += GetValue(value);
 
-    private static void Sub(string name, string value) => Memory[name] -= GetValue(value);
+    private static void Sub(string name, string value) => _memory[name] -= GetValue(value);
 
-    private static void Mul(string name, string value) => Memory[name] *= GetValue(value);
+    private static void Mul(string name, string value) => _memory[name] *= GetValue(value);
 
-    private static void Div(string name, string value) => Memory[name] /= GetValue(value);
+    private static void Div(string name, string value) => _memory[name] /= GetValue(value);
 
     private static void Msg(params string[] parameters) => _output += string.Join("", parameters.Select(x => GetStringValue(x).ToString()).ToArray());
 
@@ -158,7 +194,7 @@ public class AssemblerInterpreter
 
     private static void Call(string label)
     {
-        Indexes.Push(_pointer);
+        _indexes.Push(_pointer);
         var line = _lines.FirstOrDefault(l => l.StartsWith(label));
         var funcIndex = Array.IndexOf(_lines, line);
         _pointer = funcIndex;
@@ -166,37 +202,7 @@ public class AssemblerInterpreter
 
     private static void Ret()
     {
-        _pointer = Indexes.Pop();
-    }
-
-    private static string RemoveComments(string input)
-    {
-        var output = Regex.Replace(input, @";(.*?)\r?\n", "\n");
-
-        return output;
-    }
-
-    private static int FindProgramEnd(string input)
-    {
-        return input.IndexOf(End, StringComparison.Ordinal);
-    }
-
-    private static (string, string[]) ParseLine(string line)
-    {
-        var trimmedLine = line.Trim();
-        var index = trimmedLine.IndexOf(" ", StringComparison.Ordinal);
-
-        if (index == -1) return (trimmedLine, Array.Empty<string>());
-
-        var commandName = trimmedLine[..index];
-        var commandArgs = Regex.Split(trimmedLine[index..], ",(?=(?:[^']*'[^']*')*[^']*$)");
-
-        for (var i = 0; i < commandArgs.Length; i++)
-        {
-            commandArgs[i] = commandArgs[i].Trim(' ').Trim('\'');
-        }
-
-        return (commandName, commandArgs);
+        _pointer = _indexes.Pop();
     }
 
     #endregion
@@ -204,7 +210,7 @@ public class AssemblerInterpreter
     public static void Main()
     {
         var result = Interpret(
-            "\nmov   a, 81         ; value1\nmov   b, 153        ; value2\ncall  init\ncall  proc_gcd\ncall  print\nend\n\nproc_gcd:\n    cmp   c, d\n    jne   loop\n    ret\n\nloop:\n    cmp   c, d\n    jg    a_bigger\n    jmp   b_bigger\n\na_bigger:\n    sub   c, d\n    jmp   proc_gcd\n\nb_bigger:\n    sub   d, c\n    jmp   proc_gcd\n\ninit:\n    cmp   a, 0\n    jl    a_abs\n    cmp   b, 0\n    jl    b_abs\n    mov   c, a            ; temp1\n    mov   d, b            ; temp2\n    ret\n\na_abs:\n    mul   a, -1\n    jmp   init\n\nb_abs:\n    mul   b, -1\n    jmp   init\n\nprint:\n    msg   'gcd(', a, ', ', b, ') = ', c\n    ret\n");
+            "\nmov   a, 5\nmov   b, a\nmov   c, a\ncall  proc_fact\ncall  print\nend\n\nproc_fact:\n    dec   b\n    mul   c, b\n    cmp   b, 1\n    jne   proc_fact\n    ret\n\nprint:\n    msg   a, '! = ', c ; output text\n    ret\n");
 
         Console.WriteLine(result);
     }
