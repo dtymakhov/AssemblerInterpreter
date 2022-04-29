@@ -1,4 +1,6 @@
-﻿namespace Kata.AssemblyInterpreter;
+﻿using System.Text.RegularExpressions;
+
+namespace Kata.AssemblyInterpreter;
 
 public class AssemblerInterpreter
 {
@@ -8,6 +10,7 @@ public class AssemblerInterpreter
 
     public static string Interpret(string input)
     {
+        input = RemoveCommentsAndEmptyLines(input);
         // Your code here!
         return _output;
     }
@@ -34,9 +37,20 @@ public class AssemblerInterpreter
 
     private static void Msg(string msg, params string[] parameters) => _output += string.Format(msg, parameters.Select(GetValue).ToArray());
 
+    private static string RemoveCommentsAndEmptyLines(string input)
+    {
+        var output = Regex.Replace(input, @";(.*?)\r?\n", "\n");
+        output = Regex.Replace(output, @"^\s+$[\r\n]*", string.Empty, RegexOptions.Multiline);
+        output = output.Replace("\n\n", "\n");
+
+        return output;
+    }
+
     #endregion
 
     public static void Main()
     {
+        Interpret(
+            "\n ; My first program\nmov  a, 5\ninc  a\ncall function\nmsg  '(5+1)/2 = ', a    ; output message\nend\n\nfunction:\n    div  a, 2\n    ret\n");
     }
 }
