@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace Kata.AssemblyInterpreter;
 
@@ -188,19 +189,11 @@ public class AssemblerInterpreter
         if (index == -1) return (trimmedLine, Array.Empty<string>());
 
         var commandName = trimmedLine[..index];
-        var commandArgs = trimmedLine[index..].Split(',');
+        var commandArgs = Regex.Split(trimmedLine[index..], ",(?=(?:[^']*'[^']*')*[^']*$)");
 
         for (var i = 0; i < commandArgs.Length; i++)
         {
-            if (commandArgs[i].Contains('\'', StringComparison.Ordinal))
-            {
-                commandArgs[i] = commandArgs[i].Trim();
-                commandArgs[i] = commandArgs[i].Trim('\'');
-            }
-            else
-            {
-                commandArgs[i] = commandArgs[i].Trim();
-            }
+            commandArgs[i] = commandArgs[i].Trim(' ').Trim('\'');
         }
 
         return (commandName, commandArgs);
@@ -211,7 +204,7 @@ public class AssemblerInterpreter
     public static void Main()
     {
         var result = Interpret(
-            "\nmov   a, 5\nmov   b, a\nmov   c, a\ncall  proc_fact\ncall  print\nend\n\nproc_fact:\n    dec   b\n    mul   c, b\n    cmp   b, 1\n    jne   proc_fact\n    ret\n\nprint:\n    msg   a, '! = ', c ; output text\n    ret\n");
+            "\nmov   a, 81         ; value1\nmov   b, 153        ; value2\ncall  init\ncall  proc_gcd\ncall  print\nend\n\nproc_gcd:\n    cmp   c, d\n    jne   loop\n    ret\n\nloop:\n    cmp   c, d\n    jg    a_bigger\n    jmp   b_bigger\n\na_bigger:\n    sub   c, d\n    jmp   proc_gcd\n\nb_bigger:\n    sub   d, c\n    jmp   proc_gcd\n\ninit:\n    cmp   a, 0\n    jl    a_abs\n    cmp   b, 0\n    jl    b_abs\n    mov   c, a            ; temp1\n    mov   d, b            ; temp2\n    ret\n\na_abs:\n    mul   a, -1\n    jmp   init\n\nb_abs:\n    mul   b, -1\n    jmp   init\n\nprint:\n    msg   'gcd(', a, ', ', b, ') = ', c\n    ret\n");
 
         Console.WriteLine(result);
     }
